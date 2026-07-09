@@ -125,7 +125,7 @@ class OverlayBannerService : Service() {
                         v.translationY = 0f
                         // Simple tap -> on ferme aussi (comme sur iOS un tap ouvre l'app,
                         // ici on se contente de fermer la bannière)
-                        if (kotlin.math.abs(dy) < 10) removeBanner()
+                        if (kotlin.math.abs(dy) < 30) removeBanner()
                     }
                     true
                 }
