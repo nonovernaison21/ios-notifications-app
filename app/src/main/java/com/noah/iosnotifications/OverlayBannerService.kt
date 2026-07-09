@@ -33,7 +33,7 @@ class OverlayBannerService : Service() {
         const val EXTRA_PACKAGE = "extra_package"
         const val EXTRA_TITLE = "extra_title"
         const val EXTRA_TEXT = "extra_text"
-        private const val AUTO_DISMISS_MS = 4500L
+        private const val AUTO_DISMISS_MS = 7000L
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
