@@ -8,7 +8,9 @@ import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -62,7 +64,8 @@ fun SetupScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
+            .padding(24.dp)
+            .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(modifier = Modifier.height(32.dp))
@@ -83,7 +86,7 @@ fun SetupScreen(
         StepCard(
             number = "1",
             title = "Accès aux notifications",
-            description = "Autorise l'appli à lire puis masquer les notifications système.",
+            description = "Autorise l'appli à lire les notifications système.",
             buttonLabel = "Ouvrir les réglages",
             onClick = onOpenNotificationAccess
         )
@@ -104,6 +107,7 @@ fun SetupScreen(
             fontSize = 13.sp,
             color = Color(0xFF8E8E93)
         )
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 

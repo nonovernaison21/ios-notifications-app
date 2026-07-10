@@ -1,22 +1,30 @@
 package com.noah.iosnotifications
 
 import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Intent
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 
 /**
  * Intercepte les notifications systeme. Pour chaque notif recue (hors notre propre appli et
- * hors notifications persistantes des services de premier plan), on la masque (cancel) puis
- * on demande a OverlayBannerService d'afficher une bannière custom style iOS 26 a la place.
+ * hors notifications persistantes des services de premier plan), on affiche une bannière custom
+ * style iOS 26. Contrairement à une première version, on NE supprime PLUS la notification
+ * (cancelNotification) : ça la retirait aussi de la barre d'état et du centre de notifications,
+ * ce qui n'était pas voulu. À la place, on baisse l'importance du canal de notification concerné
+ * (une seule fois par canal) pour empêcher le popup natif Android de s'afficher, tout en gardant
+ * l'icône dans la barre d'état et l'entrée dans le centre de notifs intactes.
  */
 class NotificationCaptureService : NotificationListenerService() {
+
+    // Mémorise les canaux déjà "downgradés" pour ne pas refaire l'appel à chaque notif
+    private val downgradedChannels = mutableSetOf<String>()
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         // On ignore nos propres notifications pour éviter une boucle infinie
         if (sbn.packageName == packageName) return
 
-        // On ignore les notifications "en cours" non annulables (ex: lecteur de musique, appel)
         val notif = sbn.notification
         val isOngoing = (notif.flags and Notification.FLAG_ONGOING_EVENT) != 0 ||
             (notif.flags and Notification.FLAG_FOREGROUND_SERVICE) != 0
@@ -37,10 +45,11 @@ class NotificationCaptureService : NotificationListenerService() {
             sbn.packageName
         }
 
-        // On masque le popup natif Android...
-        cancelNotification(sbn.key)
+        // On empêche le popup natif de s'afficher pour ce canal (une seule fois par canal)
+        suppressHeadsUpForChannel(sbn)
 
-        // ...et on affiche notre bannière custom à la place
+        // ...et on affiche notre bannière custom à la place. On laisse la notification
+        // native intacte dans la barre d'état et le centre de notifs.
         val overlayIntent = Intent(this, OverlayBannerService::class.java).apply {
             putExtra(OverlayBannerService.EXTRA_APP_NAME, appName)
             putExtra(OverlayBannerService.EXTRA_PACKAGE, sbn.packageName)
@@ -48,6 +57,29 @@ class NotificationCaptureService : NotificationListenerService() {
             putExtra(OverlayBannerService.EXTRA_TEXT, text)
         }
         startService(overlayIntent)
+    }
+
+    private fun suppressHeadsUpForChannel(sbn: StatusBarNotification) {
+        val channelId = sbn.notification.channelId ?: return
+        val key = "${sbn.packageName}/$channelId"
+        if (key in downgradedChannels) return
+
+        try {
+            val channels = getNotificationChannels(sbn.packageName, sbn.user)
+            val channel = channels.firstOrNull { it.id == channelId } ?: return
+
+            // Seul un canal en importance HIGH (ou plus) déclenche le popup natif (heads-up).
+            // On le baisse en DEFAULT : l'icône et l'entrée dans le centre de notifs restent,
+            // seul le popup disparaît.
+            if (channel.importance >= NotificationManager.IMPORTANCE_HIGH) {
+                channel.importance = NotificationManager.IMPORTANCE_DEFAULT
+                updateNotificationChannel(sbn.packageName, sbn.user, channel)
+            }
+            downgradedChannels.add(key)
+        } catch (e: Exception) {
+            // Certains constructeurs (Xiaomi, etc.) restreignent cette API : on ignore
+            // silencieusement, la bannière custom s'affichera quand même en plus du popup natif.
+        }
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
