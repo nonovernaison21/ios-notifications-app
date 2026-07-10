@@ -40,7 +40,9 @@ class OverlayBannerService : Service() {
         if (intent == null) return START_NOT_STICKY
 
         // On retire une éventuelle bannière déjà affichée avant d'afficher la nouvelle
-        removeBanner()
+        // (sans arrêter le service, sinon la nouvelle bannière qu'on va afficher juste
+        // après disparaîtrait aussitôt)
+        clearCurrentBannerView()
 
         val appName = intent.getStringExtra(EXTRA_APP_NAME) ?: ""
         val pkg = intent.getStringExtra(EXTRA_PACKAGE) ?: ""
@@ -134,7 +136,8 @@ class OverlayBannerService : Service() {
         }
     }
 
-    private fun removeBanner() {
+    /** Retire la vue affichée à l'écran sans arrêter le service. */
+    private fun clearCurrentBannerView() {
         dismissRunnable?.let { autoDismissHandler.removeCallbacks(it) }
         bannerView?.let {
             try {
@@ -144,6 +147,11 @@ class OverlayBannerService : Service() {
             }
         }
         bannerView = null
+    }
+
+    /** Ferme définitivement la bannière (fin du délai, swipe, tap) et arrête le service. */
+    private fun removeBanner() {
+        clearCurrentBannerView()
         stopSelf()
     }
 
@@ -153,7 +161,7 @@ class OverlayBannerService : Service() {
     }
 
     override fun onDestroy() {
-        removeBanner()
+        clearCurrentBannerView()
         super.onDestroy()
     }
 
