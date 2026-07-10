@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="app_name">iOS Notifs</string>
-    <string name="accessibility_service_description">Détecte l\'ouverture du multitâche pour afficher un écran de tâches récentes façon iOS 26.</string>
-</resources>

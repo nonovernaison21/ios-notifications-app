@@ -33,7 +33,7 @@ class OverlayBannerService : Service() {
         const val EXTRA_PACKAGE = "extra_package"
         const val EXTRA_TITLE = "extra_title"
         const val EXTRA_TEXT = "extra_text"
-        private const val AUTO_DISMISS_MS = 7000L
+        private const val AUTO_DISMISS_MS = 4500L
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -89,6 +89,14 @@ class OverlayBannerService : Service() {
         params.y = dpToPx(48)
         params.horizontalMargin = 0f
 
+        // Vrai flou du contenu situé derrière la bannière (effet "verre liquide" iOS 26),
+        // disponible depuis Android 12 (API 31). Sur les versions plus anciennes, le fond
+        // semi-transparent du drawable suffit à donner une impression de profondeur.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            params.flags = params.flags or WindowManager.LayoutParams.FLAG_BLUR_BEHIND
+            params.blurBehindRadius = dpToPx(28)
+        }
+
         // On ajoute une marge horizontale via padding sur le root plutôt que WindowManager
         view.setPadding(dpToPx(12), 0, dpToPx(12), 0)
 
@@ -127,7 +135,7 @@ class OverlayBannerService : Service() {
                         v.translationY = 0f
                         // Simple tap -> on ferme aussi (comme sur iOS un tap ouvre l'app,
                         // ici on se contente de fermer la bannière)
-                        if (kotlin.math.abs(dy) < 30) removeBanner()
+                        if (kotlin.math.abs(dy) < 10) removeBanner()
                     }
                     true
                 }
