@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="banner_text_primary">#FFFFFF</color>
+    <color name="banner_text_secondary">#D1D1D6</color>
+    <color name="banner_text_tertiary">#98989D</color>
+    <color name="banner_icon_bg">#3A3A3C</color>
+</resources>
