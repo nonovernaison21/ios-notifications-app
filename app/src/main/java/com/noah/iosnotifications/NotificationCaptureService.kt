@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.content.Intent
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
+import android.widget.Toast
 
 /**
  * Intercepte les notifications systeme. Pour chaque notif recue (hors notre propre appli et
@@ -60,13 +61,21 @@ class NotificationCaptureService : NotificationListenerService() {
     }
 
     private fun suppressHeadsUpForChannel(sbn: StatusBarNotification) {
-        val channelId = sbn.notification.channelId ?: return
+        val channelId = sbn.notification.channelId
+        if (channelId == null) {
+            Toast.makeText(this, "DEBUG: pas de channelId pour ${sbn.packageName}", Toast.LENGTH_SHORT).show()
+            return
+        }
         val key = "${sbn.packageName}/$channelId"
         if (key in downgradedChannels) return
 
         try {
             val channels = getNotificationChannels(sbn.packageName, sbn.user)
-            val channel = channels.firstOrNull { it.id == channelId } ?: return
+            val channel = channels.firstOrNull { it.id == channelId }
+            if (channel == null) {
+                Toast.makeText(this, "DEBUG: canal '$channelId' introuvable pour ${sbn.packageName}", Toast.LENGTH_SHORT).show()
+                return
+            }
 
             // Seul un canal en importance HIGH (ou plus) déclenche le popup natif (heads-up).
             // On le baisse en DEFAULT : l'icône et l'entrée dans le centre de notifs restent,
@@ -74,11 +83,13 @@ class NotificationCaptureService : NotificationListenerService() {
             if (channel.importance >= NotificationManager.IMPORTANCE_HIGH) {
                 channel.importance = NotificationManager.IMPORTANCE_DEFAULT
                 updateNotificationChannel(sbn.packageName, sbn.user, channel)
+                Toast.makeText(this, "DEBUG: canal ${sbn.packageName}/$channelId downgradé", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "DEBUG: canal déjà à ${channel.importance}, pas HIGH", Toast.LENGTH_SHORT).show()
             }
             downgradedChannels.add(key)
         } catch (e: Exception) {
-            // Certains constructeurs (Xiaomi, etc.) restreignent cette API : on ignore
-            // silencieusement, la bannière custom s'affichera quand même en plus du popup natif.
+            Toast.makeText(this, "DEBUG: erreur downgrade -> ${e.javaClass.simpleName}: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 
