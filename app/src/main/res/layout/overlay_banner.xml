@@ -7,7 +7,8 @@
     android:background="@drawable/bg_ios_banner"
     android:padding="16dp"
     android:clipToOutline="true"
-    android:elevation="16dp">
+    android:elevation="16dp"
+    android:minHeight="80dp">
 
     <ImageView
         android:id="@+id/banner_icon"
@@ -69,6 +70,7 @@
             android:layout_marginTop="2dp"
             android:textColor="@color/banner_text_secondary"
             android:textSize="14sp"
+            android:minLines="2"
             android:maxLines="2"
             android:ellipsize="end" />
     </LinearLayout>

@@ -11,15 +11,22 @@ import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewTreeObserver
 import android.view.WindowManager
-import android.view.animation.AnimationUtils
+import android.view.animation.AccelerateInterpolator
+import android.view.animation.OvershootInterpolator
 import android.widget.ImageView
 import android.widget.TextView
+import kotlin.math.abs
 
 /**
  * Affiche une bannière flottante style iOS 26 par-dessus toutes les autres applications,
  * a la place du popup de notification natif d'Android (qui a déjà été masqué en amont
  * par NotificationCaptureService).
+ *
+ * L'apparition/disparition est animée depuis le haut-centre de l'écran (zone du notch),
+ * façon "Dynamic Island" : la bannière grossit depuis ce point puis rétrécit vers ce
+ * même point en disparaissant.
  */
 class OverlayBannerService : Service() {
 
@@ -34,14 +41,14 @@ class OverlayBannerService : Service() {
         const val EXTRA_TITLE = "extra_title"
         const val EXTRA_TEXT = "extra_text"
         private const val AUTO_DISMISS_MS = 4500L
+        private const val ENTER_DURATION_MS = 340L
+        private const val EXIT_DURATION_MS = 220L
+        private const val MIN_SCALE = 0.15f
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent == null) return START_NOT_STICKY
 
-        // On retire une éventuelle bannière déjà affichée avant d'afficher la nouvelle
-        // (sans arrêter le service, sinon la nouvelle bannière qu'on va afficher juste
-        // après disparaîtrait aussitôt)
         clearCurrentBannerView()
 
         val appName = intent.getStringExtra(EXTRA_APP_NAME) ?: ""
@@ -89,29 +96,46 @@ class OverlayBannerService : Service() {
         params.y = dpToPx(48)
         params.horizontalMargin = 0f
 
-        // Vrai flou du contenu situé derrière la bannière (effet "verre liquide" iOS 26),
-        // disponible depuis Android 12 (API 31). Sur les versions plus anciennes, le fond
-        // semi-transparent du drawable suffit à donner une impression de profondeur.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             params.flags = params.flags or WindowManager.LayoutParams.FLAG_BLUR_BEHIND
             params.blurBehindRadius = dpToPx(28)
         }
 
-        // On ajoute une marge horizontale via padding sur le root plutôt que WindowManager
         view.setPadding(dpToPx(12), 0, dpToPx(12), 0)
+
+        // Etat initial "réduit au point du notch" avant attachement, pour éviter un flash
+        // à taille normale au premier affichage.
+        view.alpha = 0f
+        view.scaleX = MIN_SCALE
+        view.scaleY = MIN_SCALE
 
         windowManager?.addView(view, params)
 
-        val slideDown = AnimationUtils.loadAnimation(this, android.R.anim.slide_in_left).apply {
-            duration = 260
-        }
-        view.startAnimation(slideDown)
+        view.viewTreeObserver.addOnGlobalLayoutListener(object : ViewTreeObserver.OnGlobalLayoutListener {
+            override fun onGlobalLayout() {
+                view.viewTreeObserver.removeOnGlobalLayoutListener(this)
+                view.pivotX = view.width / 2f
+                view.pivotY = 0f
+                animateIn(view)
+            }
+        })
 
-        // Glisser vers le haut ou taper dessus pour fermer plus tôt
         setupDismissGestures(view)
 
-        dismissRunnable = Runnable { removeBanner() }
+        dismissRunnable = Runnable { animateOutAndStop() }
         autoDismissHandler.postDelayed(dismissRunnable!!, AUTO_DISMISS_MS)
+    }
+
+    /** Anime l'apparition : grossit + fondu depuis le point du notch (haut-centre). */
+    private fun animateIn(view: View) {
+        view.animate()
+            .alpha(1f)
+            .scaleX(1f)
+            .scaleY(1f)
+            .setDuration(ENTER_DURATION_MS)
+            .setInterpolator(OvershootInterpolator(1.0f))
+            .setListener(null)
+            .start()
     }
 
     private fun setupDismissGestures(view: View) {
@@ -129,13 +153,10 @@ class OverlayBannerService : Service() {
                 }
                 MotionEvent.ACTION_UP -> {
                     val dy = event.rawY - startY
-                    if (dy < -40) {
-                        removeBanner()
+                    if (dy < -40 || abs(dy) < 10) {
+                        animateOutAndStop()
                     } else {
-                        v.translationY = 0f
-                        // Simple tap -> on ferme aussi (comme sur iOS un tap ouvre l'app,
-                        // ici on se contente de fermer la bannière)
-                        if (kotlin.math.abs(dy) < 10) removeBanner()
+                        v.animate().translationY(0f).setDuration(150).start()
                     }
                     true
                 }
@@ -144,10 +165,42 @@ class OverlayBannerService : Service() {
         }
     }
 
-    /** Retire la vue affichée à l'écran sans arrêter le service. */
+    /**
+     * Anime la disparition : rétrécit + fondu vers le point du notch (haut-centre), puis
+     * retire réellement la vue et arrête le service une fois l'animation terminée.
+     */
+    private fun animateOutAndStop() {
+        dismissRunnable?.let { autoDismissHandler.removeCallbacks(it) }
+        val view = bannerView
+        if (view == null) {
+            stopSelf()
+            return
+        }
+
+        view.animate()
+            .alpha(0f)
+            .scaleX(MIN_SCALE)
+            .scaleY(MIN_SCALE)
+            .translationY(0f)
+            .setDuration(EXIT_DURATION_MS)
+            .setInterpolator(AccelerateInterpolator())
+            .withEndAction {
+                try {
+                    windowManager?.removeView(view)
+                } catch (e: Exception) {
+                    // Vue déjà retirée
+                }
+                if (bannerView === view) bannerView = null
+                stopSelf()
+            }
+            .start()
+    }
+
+    /** Retire la vue affichée à l'écran instantanément, sans animation ni arrêt du service. */
     private fun clearCurrentBannerView() {
         dismissRunnable?.let { autoDismissHandler.removeCallbacks(it) }
         bannerView?.let {
+            it.animate().cancel()
             try {
                 windowManager?.removeView(it)
             } catch (e: Exception) {
@@ -155,12 +208,6 @@ class OverlayBannerService : Service() {
             }
         }
         bannerView = null
-    }
-
-    /** Ferme définitivement la bannière (fin du délai, swipe, tap) et arrête le service. */
-    private fun removeBanner() {
-        clearCurrentBannerView()
-        stopSelf()
     }
 
     private fun dpToPx(dp: Int): Int {
