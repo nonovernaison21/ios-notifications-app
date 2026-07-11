@@ -32,6 +32,7 @@ class OverlayBannerService : Service() {
 
     private var windowManager: WindowManager? = null
     private var bannerView: View? = null
+    private var currentPackage: String = ""
     private val autoDismissHandler = Handler(Looper.getMainLooper())
     private var dismissRunnable: Runnable? = null
 
@@ -62,6 +63,7 @@ class OverlayBannerService : Service() {
 
     private fun showBanner(appName: String, pkg: String, title: String, text: String) {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        currentPackage = pkg
 
         val inflater = LayoutInflater.from(this)
         val view = inflater.inflate(R.layout.overlay_banner, null)
@@ -113,10 +115,21 @@ class OverlayBannerService : Service() {
 
         view.viewTreeObserver.addOnGlobalLayoutListener(object : ViewTreeObserver.OnGlobalLayoutListener {
             override fun onGlobalLayout() {
-                view.viewTreeObserver.removeOnGlobalLayoutListener(this)
-                view.pivotX = view.width / 2f
-                view.pivotY = 0f
-                animateIn(view)
+                try {
+                    val observer = view.viewTreeObserver
+                    if (observer.isAlive) {
+                        observer.removeOnGlobalLayoutListener(this)
+                    }
+                    // Si la vue a déjà été détachée entre-temps (notif suivante arrivée très
+                    // vite), on n'anime pas une vue qui n'est plus affichée.
+                    if (view.isAttachedToWindow) {
+                        view.pivotX = view.width / 2f
+                        view.pivotY = 0f
+                        animateIn(view)
+                    }
+                } catch (e: Exception) {
+                    // On ignore : au pire la bannière suivante prendra le relais normalement
+                }
             }
         })
 
@@ -138,6 +151,20 @@ class OverlayBannerService : Service() {
             .start()
     }
 
+    /** Ouvre l'application concernée par la notification, comme un tap sur iOS. */
+    private fun openCurrentApp() {
+        if (currentPackage.isBlank()) return
+        try {
+            val launchIntent = packageManager.getLaunchIntentForPackage(currentPackage)
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(launchIntent)
+            }
+        } catch (e: Exception) {
+            // Si l'app n'a pas d'écran à ouvrir ou n'existe plus, on ignore simplement
+        }
+    }
+
     private fun setupDismissGestures(view: View) {
         var startY = 0f
         view.setOnTouchListener { v, event ->
@@ -153,7 +180,12 @@ class OverlayBannerService : Service() {
                 }
                 MotionEvent.ACTION_UP -> {
                     val dy = event.rawY - startY
-                    if (dy < -40 || abs(dy) < 10) {
+                    if (dy < -40) {
+                        // Swipe franc vers le haut -> on ferme juste la bannière
+                        animateOutAndStop()
+                    } else if (abs(dy) < 10) {
+                        // Simple tap -> comme sur iOS, on ouvre l'app concernée
+                        openCurrentApp()
                         animateOutAndStop()
                     } else {
                         v.animate().translationY(0f).setDuration(150).start()
