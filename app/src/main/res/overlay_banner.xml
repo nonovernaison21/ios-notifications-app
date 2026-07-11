@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/banner_container"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <LinearLayout
+        android:id="@+id/banner_root"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="@drawable/bg_ios_banner"
+        android:padding="13dp"
+        android:clipToOutline="true"
+        android:elevation="16dp"
+        android:minHeight="68dp">
+
+        <ImageView
+            android:id="@+id/banner_icon"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_gravity="center_vertical"
+            android:background="@drawable/bg_icon_squircle"
+            android:clipToOutline="true"
+            android:scaleType="centerCrop" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="12dp"
+            android:layout_gravity="center_vertical"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/banner_app_name"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textColor="@color/banner_text_tertiary"
+                    android:letterSpacing="0.06"
+                    android:textSize="10sp"
+                    android:textAllCaps="true"
+                    android:maxLines="1" />
+
+                <TextView
+                    android:id="@+id/banner_time"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/banner_text_tertiary"
+                    android:textSize="10sp"
+                    android:text="maintenant" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/banner_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:textColor="@color/banner_text_primary"
+                android:textStyle="bold"
+                android:textSize="15.5sp"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/banner_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="1dp"
+                android:textColor="@color/banner_text_secondary"
+                android:textSize="13sp"
+                android:minLines="2"
+                android:maxLines="2"
+                android:ellipsize="end" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>
